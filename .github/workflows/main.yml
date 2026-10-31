@@ -24,35 +24,67 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Localizar Android SDK
+      - name: Extrair ZIP do projeto
         run: |
-          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+          sudo apt-get update
+          sudo apt-get install -y unzip
+
+          find . -type f -name "*.zip" -not -path "./.git/*" -print0 |
+          while IFS= read -r -d '' arquivo; do
+            echo "Extraindo: $arquivo"
+            unzip -oq "$arquivo" -d ./projeto_extraido
+          done
+
+      - name: Encontrar pasta correta
+        run: |
+          PROJECT_DIR=""
+
+          while IFS= read -r arquivo; do
+            pasta="${arquivo%/app/build.gradle}"
+            if [ -f "$pasta/settings.gradle" ] || [ -f "$pasta/settings.gradle.kts" ]; then
+              PROJECT_DIR="$pasta"
+              break
+            fi
+          done < <(find . -type f -path "*/app/build.gradle" -not -path "./.git/*")
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERRO: Não encontrei app/build.gradle junto com settings.gradle."
+            echo "Arquivos encontrados:"
+            find . -maxdepth 5 -type f | head -200
+            exit 1
+          fi
+
+          echo "Projeto localizado: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Configurar Android SDK
+        run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)
+
           if [ -z "$SDKMANAGER" ]; then
             echo "sdkmanager não encontrado"
             exit 1
           fi
-          echo "$(dirname "$SDKMANAGER")" >> $GITHUB_PATH
-          echo "SDKMANAGER=$SDKMANAGER" >> $GITHUB_ENV
 
-      - name: Instalar componentes Android
-        run: |
-          yes | "$SDKMANAGER" --licenses || true
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses || true
+
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install \
             "platforms;android-30" \
             "build-tools;30.0.3"
 
-      - name: Configurar Gradle 7.3.3
+      - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '7.3.3'
 
       - name: Compilar APK
-        run: gradle :app:assembleRelease
+        run: |
+          echo "Compilando em: $PROJECT_DIR"
+          gradle -p "$PROJECT_DIR" :app:assembleRelease
 
       - name: Salvar APK
         uses: actions/upload-artifact@v4
         with:
           name: MG-MODZ-VPN-APK
-          path: app/build/outputs/apk/release/*.apk
+          path: '**/app/build/outputs/apk/release/*.apk'
           if-no-files-found: error
