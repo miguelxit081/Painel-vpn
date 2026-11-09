@@ -1,20 +1,23 @@
-name: Build APK
+name: Compilar APK Android
 
 on:
   push:
     branches:
       - main
+      - master
   workflow_dispatch:
 
 jobs:
   build:
+    name: Build Debug APK
     runs-on: ubuntu-latest
 
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
+    defaults:
+      run:
+        working-directory: HyperS-free
 
     steps:
-      - name: Baixar projeto
+      - name: Baixar código do repositório
         uses: actions/checkout@v4
 
       - name: Configurar Java 17
@@ -22,71 +25,27 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Extrair ZIP do projeto
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip
-          find . -type f -name "*.zip" -not -path "./.git/*" -print0 |
-          while IFS= read -r -d '' arquivo; do
-            echo "Extraindo: $arquivo"
-            unzip -oq "$arquivo" -d ./projeto_extraido
-          done
-
-      - name: Encontrar pasta correta
-        run: |
-          PROJECT_DIR=""
-          while IFS= read -r arquivo; do
-            pasta="${arquivo%/app/build.gradle}"
-            if [ -f "$pasta/settings.gradle" ] || [ -f "$pasta/settings.gradle.kts" ]; then
-              PROJECT_DIR="$pasta"
-              break
-            fi
-          done < <(find . -type f -path "*/app/build.gradle" -not -path "./.git/*")
-
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ERRO: Não encontrei app/build.gradle junto com settings.gradle."
-            find . -maxdepth 5 -type f | head -200
-            exit 1
-          fi
-
-          echo "Projeto localizado: $PROJECT_DIR"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          cache: gradle
 
       - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Android SDK 34
         run: |
-          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager não encontrado"
-            exit 1
-          fi
-          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses || true
-          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install \
-            "platforms;android-30" \
-            "build-tools;30.0.3"
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" \
+                     "platforms;android-34" \
+                     "build-tools;34.0.0"
 
-      - name: Configurar Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '7.3.3'
+      - name: Dar permissão ao Gradle Wrapper
+        run: chmod +x ./gradlew
 
-      - name: Garantir AndroidX e remover local.properties
-        run: |
-          rm -f "$PROJECT_DIR/local.properties"
-          touch "$PROJECT_DIR/gradle.properties"
-          grep -q "android.useAndroidX" "$PROJECT_DIR/gradle.properties" || {
-            echo "android.useAndroidX=true" >> "$PROJECT_DIR/gradle.properties"
-            echo "android.enableJetifier=true" >> "$PROJECT_DIR/gradle.properties"
-          }
+      - name: Compilar APK Debug
+        run: ./gradlew --no-daemon assembleDebug
 
-      - name: Compilar APK
-        run: |
-          echo "Compilando em: $PROJECT_DIR"
-          gradle -p "$PROJECT_DIR" :app:assembleRelease --stacktrace
-
-      - name: Salvar APK
+      - name: Enviar APK compilado
         uses: actions/upload-artifact@v4
         with:
-          name: MG-MODZ-VPN-APK
-          path: '**/app/build/outputs/apk/release/*.apk'
+          name: HyperS-debug-apk
+          path: HyperS-free/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
