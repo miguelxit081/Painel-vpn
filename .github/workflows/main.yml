@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Baixar repositorio
         uses: actions/checkout@v4
 
-      - name: Configurar Java 17
+      - name: Configurar Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -24,25 +24,28 @@ jobs:
 
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '12266719'
+          packages: platform-tools
 
-      - name: Instalar SDK
+      - name: Instalar plataformas Android
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
       - name: Localizar Gradle
         id: gradle
+        shell: bash
         run: |
           FILE=$(find . -type f -name gradlew -not -path './.git/*' -print -quit)
           if [ -z "$FILE" ]; then
-            echo "Gradle wrapper não encontrado"
+            echo "ERRO: gradlew nao encontrado"
             exit 1
           fi
           DIR=$(dirname "$FILE")
           chmod +x "$FILE"
           echo "dir=$DIR" >> "$GITHUB_OUTPUT"
 
-      - name: Compilar APK
+      - name: Compilar aplicativo
         run: |
           cd "${{ steps.gradle.outputs.dir }}"
           ./gradlew --no-daemon assembleDebug
@@ -50,10 +53,13 @@ jobs:
       - name: Preparar MG WIRE
         run: |
           APK=$(find "${{ steps.gradle.outputs.dir }}" -type f -path '*/build/outputs/apk/debug/*.apk' -print -quit)
-          test -n "$APK"
-          cp "$APK" MG-WIRE.apk
+          if [ -z "$APK" ]; then
+            echo "APK nao encontrado"
+            exit 1
+          fi
+          cp "$APK" "$GITHUB_WORKSPACE/MG-WIRE.apk"
 
-      - name: Disponibilizar APK
+      - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
           name: MG-WIRE
