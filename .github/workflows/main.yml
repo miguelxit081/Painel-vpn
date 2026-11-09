@@ -1,4 +1,4 @@
-name: Compilar APK Android
+name: Compilar MG WIRE APK
 
 on:
 push:
@@ -9,19 +9,12 @@ workflow_dispatch:
 
 jobs:
 build:
-name: Build Debug APK
+name: Build MG WIRE
 runs-on: ubuntu-latest
 
 steps:
-  - name: Baixar código do repositório
+  - name: Baixar código do repositorio
     uses: actions/checkout@v4
-
-  - name: Verificar arquivos do projeto
-    run: |
-      echo "Arquivos do repositório:"
-      ls -la
-      echo "Procurando projeto Android:"
-      find . -maxdepth 4 \( -name gradlew -o -name build.gradle -o -name build.gradle.kts \)
 
   - name: Configurar Java 17
     uses: actions/setup-java@v4
@@ -36,20 +29,30 @@ steps:
     run: |
       yes | sdkmanager --licenses || true
       sdkmanager "platform-tools" \
-                 "platforms;android-34" \
-                 "build-tools;34.0.0"
+        "platforms;android-34" \
+        "build-tools;34.0.0"
+
+  - name: Verificar projeto
+    run: |
+      ls -la
+      ls -la HyperS-free
+      test -f HyperS-free/gradlew
 
   - name: Preparar Gradle
     working-directory: HyperS-free
     run: chmod +x gradlew
 
-  - name: Compilar APK Debug
+  - name: Compilar MG WIRE
     working-directory: HyperS-free
     run: ./gradlew --no-daemon assembleDebug
+
+  - name: Renomear APK
+    run: |
+      cp HyperS-free/app/build/outputs/apk/debug/app-debug.apk MG-WIRE.apk
 
   - name: Enviar APK compilado
     uses: actions/upload-artifact@v4
     with:
-      name: mg-debug-apk
-      path: mg/app/build/outputs/apk/debug/app-debug.apk
+      name: MG-WIRE
+      path: MG-WIRE.apk
       if-no-files-found: error
