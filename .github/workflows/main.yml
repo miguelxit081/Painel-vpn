@@ -1,51 +1,55 @@
 name: Compilar APK Android
 
 on:
-  push:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
+push:
+branches:
+- main
+- master
+workflow_dispatch:
 
 jobs:
-  build:
-    name: Build Debug APK
-    runs-on: ubuntu-latest
+build:
+name: Build Debug APK
+runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: HyperS-free
+steps:
+  - name: Baixar código do repositório
+    uses: actions/checkout@v4
 
-    steps:
-      - name: Baixar código do repositório
-        uses: actions/checkout@v4
+  - name: Verificar arquivos do projeto
+    run: |
+      echo "Arquivos do repositório:"
+      ls -la
+      echo "Procurando projeto Android:"
+      find . -maxdepth 4 \( -name gradlew -o -name build.gradle -o -name build.gradle.kts \)
 
-      - name: Configurar Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: gradle
+  - name: Configurar Java 17
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: '17'
 
-      - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
+  - name: Configurar Android SDK
+    uses: android-actions/setup-android@v3
 
-      - name: Instalar Android SDK 34
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" \
-                     "platforms;android-34" \
-                     "build-tools;34.0.0"
+  - name: Instalar Android SDK 34
+    run: |
+      yes | sdkmanager --licenses || true
+      sdkmanager "platform-tools" \
+                 "platforms;android-34" \
+                 "build-tools;34.0.0"
 
-      - name: Dar permissão ao Gradle Wrapper
-        run: chmod +x ./gradlew
+  - name: Preparar Gradle
+    working-directory: HyperS-free
+    run: chmod +x gradlew
 
-      - name: Compilar APK Debug
-        run: ./gradlew --no-daemon assembleDebug
+  - name: Compilar APK Debug
+    working-directory: HyperS-free
+    run: ./gradlew --no-daemon assembleDebug
 
-      - name: Enviar APK compilado
-        uses: actions/upload-artifact@v4
-        with:
-          name: HyperS-debug-apk
-          path: HyperS-free/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+  - name: Enviar APK compilado
+    uses: actions/upload-artifact@v4
+    with:
+      name: mg-debug-apk
+      path: mg/app/build/outputs/apk/debug/app-debug.apk
+      if-no-files-found: error
